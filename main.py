@@ -5,26 +5,20 @@ import asyncio
 from datetime import datetime, timedelta
 import os
 
-TOKEN = os.environ.get('TOKEN')
+TOKEN = os.environ.get("TOKEN")
 GUILD_ID = 1333667547006107708
 LOG_CHANNEL_ID = 1348264999730155621
+OTHER_LOG_CHANNEL_ID = 1337295229124087838
 ALLOWED_CHANNEL_ID = 1349565123857223711
+WELCOME_LOG = 1349573548066213888
 
-# Anti-raid and anti-nuke thresholds
-RAID_THRESHOLD = 5  # Number of joins within RAID_TIME_WINDOW to trigger anti-raid
-RAID_TIME_WINDOW = 10  # Time window in seconds to check for raids
-NUKE_THRESHOLD = 3  # Number of deletions within NUKE_TIME_WINDOW to trigger anti-nuke
-NUKE_TIME_WINDOW = 10  # Time window in seconds to check for nukes
-SPAM_THRESHOLD = 5  # Number of messages within SPAM_TIME_WINDOW to trigger anti-spam
-SPAM_TIME_WINDOW = 10  # Time window in seconds to check for spam
+ROLE_1_ID = 123456789012345678
+ROLE_2_ID = 987654321098765432
+ROLE_1_EMOJI = "✅"
+ROLE_2_EMOJI = "🔵"
 
 intents = disnake.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
-
-# Track joins, deletions, and messages for anti-raid, anti-nuke, and anti-spam
-join_timestamps = []
-delete_timestamps = []
-user_message_timestamps = {}
 
 questions = [
 "What is your ideology?",
@@ -41,11 +35,16 @@ questions = [
 "Opinions on modernization in terms of social activies ie. Dating."
 ]
 
+
+
+
+
 @bot.slash_command(
     name="start_survey",
     description="Start a survey with predefined questions.",
     guild_ids=[GUILD_ID]
 )
+
 async def start_survey(interaction: ApplicationCommandInteraction):
     if interaction.channel_id != ALLOWED_CHANNEL_ID:
         await interaction.response.send_message("This command can only be used in the verification channel.", ephemeral=True)
@@ -85,11 +84,42 @@ async def start_survey(interaction: ApplicationCommandInteraction):
 
     await user.send("Survey completed! Please wait until an admin gives you the access.")
 
+
+@bot.slash_command(
+    name="clear",
+    description="Delete up to 1000 messages in this channel.",
+    options=[
+        disnake.Option(
+            name="amount",
+            description="Number of messages to delete (1-1000).",
+            type=disnake.OptionType.integer,
+            required=True,
+            min_value=1,
+            max_value=1000
+        )
+    ],
+    default_member_permissions=disnake.Permissions(manage_messages=True)  # Restrict to users with "Manage Messages" permission
+
+    
+)
+
+async def clear(inter: disnake.ApplicationCommandInteraction, amount: int):
+    # Check if the bot has permission to manage messages
+    if not inter.channel.permissions_for(inter.guild.me).manage_messages:
+        await inter.response.send_message("I don't have permission to delete messages in this channel.", ephemeral=True)
+        return
+
+    # Delete the messages
+    deleted = await inter.channel.purge(limit=amount)
+    await inter.response.send_message(f"Deleted {len(deleted)} messages.", ephemeral=True)
+
+
 @bot.slash_command(
     name="admin_send",
     description="Send a message as an embed (Admin only).",
     guild_ids=[GUILD_ID]
 )
+
 @commands.has_permissions(administrator=True)
 async def admin_send(interaction: ApplicationCommandInteraction, channel: disnake.TextChannel, title: str, description: str, color: str = "blue"):
     color = color.lower()
@@ -101,6 +131,10 @@ async def admin_send(interaction: ApplicationCommandInteraction, channel: disnak
         embed_color = disnake.Color.red()
     elif color == "yellow":
         embed_color = disnake.Color.yellow()
+    elif color == "orange":
+        embed_color = disnake.Color.orange()
+    elif color == "purple":
+        embed_color = disnake.Color.purple()
     else:
         embed_color = disnake.Color.blue()  # Default to blue if color is not recognized
 
@@ -112,16 +146,9 @@ async def admin_send(interaction: ApplicationCommandInteraction, channel: disnak
 async def on_ready():
     print(f"Logged in as {bot.user} and synced commands.")
 
-    registered_commands = await bot.fetch_global_commands()
-    command_names = [cmd.name for cmd in registered_commands]
-    print(f"Registered Slash Commands: {command_names}")
-
 @bot.event
 async def on_member_join(member):
-    global join_timestamps
-
-    # Log the join event
-    log_channel = bot.get_channel(LOG_CHANNEL_ID)
+    log_channel = bot.get_channel(WELCOME_LOG)
     if log_channel:
         embed = disnake.Embed(
             title="Member Joined",
@@ -131,33 +158,9 @@ async def on_member_join(member):
         embed.set_thumbnail(url=member.avatar.url)
         await log_channel.send(embed=embed)
 
-    # Anti-raid system
-    now = datetime.utcnow()
-    join_timestamps.append(now)
-
-    # Remove timestamps older than the time window
-    join_timestamps = [timestamp for timestamp in join_timestamps if now - timestamp <= timedelta(seconds=RAID_TIME_WINDOW)]
-
-    # Check if the number of joins exceeds the threshold
-    if len(join_timestamps) >= RAID_THRESHOLD:
-        # Ban all users who joined recently
-        for timestamp in join_timestamps:
-            await member.guild.ban(member, reason="Anti-raid system triggered.")
-        
-        # Send an alert to the log channel
-        if log_channel:
-            embed = disnake.Embed(
-                title="🚨 Anti-Raid Triggered 🚨",
-                description=f"**{len(join_timestamps)} users joined within {RAID_TIME_WINDOW} seconds. Banned all suspicious users.**",
-                color=disnake.Color.red()
-            )
-            await log_channel.send(embed=embed)
-
-        join_timestamps = []
-
 @bot.event
 async def on_member_remove(member):
-    log_channel = bot.get_channel(LOG_CHANNEL_ID)
+    log_channel = bot.get_channel(WELCOME_LOG)
     if log_channel:
         embed = disnake.Embed(
             title="Member Left",
@@ -168,80 +171,390 @@ async def on_member_remove(member):
         await log_channel.send(embed=embed)
 
 @bot.event
-async def on_guild_channel_delete(channel):
-    global delete_timestamps
-
-    # Anti-nuke system
-    now = datetime.utcnow()
-    delete_timestamps.append(now)
-
-    # Remove timestamps older than the time window
-    delete_timestamps = [timestamp for timestamp in delete_timestamps if now - timestamp <= timedelta(seconds=NUKE_TIME_WINDOW)]
-
-    # Check if the number of deletions exceeds the threshold
-    if len(delete_timestamps) >= NUKE_THRESHOLD:
-        # Fetch the audit logs to find the user responsible
-        async for entry in channel.guild.audit_logs(action=disnake.AuditLogAction.channel_delete, limit=1):
-            user = entry.user
-            await user.ban(reason="Anti-nuke system triggered.")
-            break
-
-        # Send an alert to the log channel
-        log_channel = bot.get_channel(LOG_CHANNEL_ID)
-        if log_channel:
-            embed = disnake.Embed(
-                title="🚨 Anti-Nuke Triggered 🚨",
-                description=f"**{len(delete_timestamps)} channels were deleted within {NUKE_TIME_WINDOW} seconds. Banned the user responsible.**",
-                color=disnake.Color.red()
-            )
+async def on_member_update(before, after):
+    log_channel = bot.get_channel(OTHER_LOG_CHANNEL_ID)
+    if log_channel:
+        if before.nick != after.nick:
+            embed = disnake.Embed(title="Nickname Change", color=disnake.Color.blue())
+            embed.add_field(name="Before", value=before.nick or before.name, inline=True)
+            embed.add_field(name="After", value=after.nick or after.name, inline=True)
+            await log_channel.send(embed=embed)
+        if before.avatar != after.avatar:
+            embed = disnake.Embed(title="Profile Picture Changed", color=disnake.Color.blue())
+            embed.set_thumbnail(url=after.avatar.url)
             await log_channel.send(embed=embed)
 
-        # Reset the delete timestamps
-        delete_timestamps = []
+@bot.event
+async def on_message_delete(message):
+    log_channel = bot.get_channel(OTHER_LOG_CHANNEL_ID)
+    if log_channel:
+        embed = disnake.Embed(title="Message Deleted", color=disnake.Color.orange())
+        embed.add_field(name="User", value=message.author.mention, inline=True)
+        embed.add_field(name="Channel", value=message.channel.mention, inline=True)
+        embed.add_field(name="Content", value=message.content or "[No Content]", inline=False)
+        await log_channel.send(embed=embed)
+
+@bot.event
+async def on_message_edit(before, after):
+    log_channel = bot.get_channel(OTHER_LOG_CHANNEL_ID)
+    if log_channel and before.content != after.content:
+        embed = disnake.Embed(title="Message Edited", color=disnake.Color.yellow())
+        embed.add_field(name="User", value=before.author.mention, inline=True)
+        embed.add_field(name="Channel", value=before.channel.mention, inline=True)
+        embed.add_field(name="Before", value=before.content or "[No Content]", inline=False)
+        embed.add_field(name="After", value=after.content or "[No Content]", inline=False)
+        await log_channel.send(embed=embed)
+
+@bot.event
+async def on_guild_channel_create(channel):
+    log_channel = bot.get_channel(OTHER_LOG_CHANNEL_ID)
+    if log_channel:
+        async for entry in channel.guild.audit_logs(action=disnake.AuditLogAction.channel_delete, limit=1):
+            embed = disnake.Embed(title="Channel Created", color=disnake.Color.red())
+            embed.add_field(name="Channel Name", value=channel.name, inline=False)
+            embed.add_field(name="Created By", value=entry.user.mention, inline=False)
+            await log_channel.send(embed=embed)
+
+@bot.event
+async def on_guild_channel_delete(channel):
+    log_channel = bot.get_channel(OTHER_LOG_CHANNEL_ID)
+    if log_channel:
+        async for entry in channel.guild.audit_logs(action=disnake.AuditLogAction.channel_delete, limit=1):
+            embed = disnake.Embed(title="Channel Deleted", color=disnake.Color.red())
+            embed.add_field(name="Channel Name", value=channel.name, inline=False)
+            embed.add_field(name="Deleted By", value=entry.user.mention, inline=False)
+            await log_channel.send(embed=embed)
+
+@bot.event
+async def on_voice_state_update(member, before, after):
+    log_channel = bot.get_channel(OTHER_LOG_CHANNEL_ID)
+    if log_channel:
+        if before.channel != after.channel:
+            embed = disnake.Embed(title="Voice Channel Update", color=disnake.Color.purple())
+            embed.add_field(name="User", value=member.mention, inline=True)
+            if before.channel:
+                embed.add_field(name="Left", value=before.channel.name, inline=True)
+            if after.channel:
+                embed.add_field(name="Joined", value=after.channel.name, inline=True)
+            await log_channel.send(embed=embed)
+
+@bot.event
+async def on_member_ban(guild, user):
+    log_channel = bot.get_channel(OTHER_LOG_CHANNEL_ID)
+    if log_channel:
+        embed = disnake.Embed(title="User Banned", description=f"{user.mention} was banned.", color=disnake.Color.red())
+        await log_channel.send(embed=embed)
+
+@bot.event
+async def on_member_unban(guild, user):
+    log_channel = bot.get_channel(OTHER_LOG_CHANNEL_ID)
+    if log_channel:
+        embed = disnake.Embed(title="User Unbanned", description=f"{user.mention} was unbanned.", color=disnake.Color.green())
+        await log_channel.send(embed=embed)
+
+@bot.event
+async def on_reaction_add(reaction, user):
+    log_channel = bot.get_channel(OTHER_LOG_CHANNEL_ID)
+    if log_channel:
+        embed = disnake.Embed(title="Reaction Added", color=disnake.Color.blue())
+        embed.add_field(name="User", value=user.mention, inline=True)
+        embed.add_field(name="Message", value=reaction.message.content[:100], inline=False)
+        embed.add_field(name="Emoji", value=str(reaction.emoji), inline=True)
+        await log_channel.send(embed=embed)
+
+@bot.event
+async def on_reaction_remove(reaction, user):
+    log_channel = bot.get_channel(OTHER_LOG_CHANNEL_ID)
+    if log_channel:
+        embed = disnake.Embed(title="Reaction Removed", color=disnake.Color.orange())
+        embed.add_field(name="User", value=user.mention, inline=True)
+        embed.add_field(name="Message", value=reaction.message.content[:100], inline=False)
+        embed.add_field(name="Emoji", value=str(reaction.emoji), inline=True)
+        await log_channel.send(embed=embed)
+
+
+@bot.event
+async def on_member_update(before, after):
+    log_channel = bot.get_channel(OTHER_LOG_CHANNEL_ID)
+    if log_channel:
+        if before.roles != after.roles:
+            added_roles = [role for role in after.roles if role not in before.roles]
+            removed_roles = [role for role in before.roles if role not in after.roles]
+            embed = disnake.Embed(title="Role Update", color=disnake.Color.blue())
+            embed.add_field(name="User", value=after.mention, inline=True)
+            if added_roles:
+                embed.add_field(name="Added Roles", value=", ".join(r.mention for r in added_roles), inline=False)
+            if removed_roles:
+                embed.add_field(name="Removed Roles", value=", ".join(r.mention for r in removed_roles), inline=False)
+            await log_channel.send(embed=embed)
+        
+        if before.timed_out_until != after.timed_out_until:
+            embed = disnake.Embed(title="User Timeout", color=disnake.Color.red())
+            embed.add_field(name="User", value=after.mention, inline=True)
+            if after.timed_out_until:
+                embed.add_field(name="Timed Out Until", value=str(after.timed_out_until), inline=False)
+            else:
+                embed.add_field(name="Timeout Removed", value="User is no longer timed out.", inline=False)
+            await log_channel.send(embed=embed)
+        
+        if before.premium_since != after.premium_since:
+            embed = disnake.Embed(title="User Boosted", color=disnake.Color.pink())
+            embed.add_field(name="User", value=after.mention, inline=True)
+            if after.premium_since:
+                embed.add_field(name="Boosted the Server", value="Yes", inline=False)
+            else:
+                embed.add_field(name="Stopped Boosting", value="Yes", inline=False)
+            await log_channel.send(embed=embed)
+
+
+@bot.event
+async def on_guild_role_create(role):
+    log_channel = bot.get_channel(OTHER_LOG_CHANNEL_ID)
+    if log_channel:
+        # Fetch audit logs to find who created the role
+        async for entry in role.guild.audit_logs(action=disnake.AuditLogAction.role_create, limit=1):
+            embed = disnake.Embed(title="Role Created", description=role.mention, color=disnake.Color.green())
+            embed.add_field(name="Created By", value=entry.user.mention, inline=False)
+            await log_channel.send(embed=embed)
+
+@bot.event
+async def on_guild_role_delete(role):
+    log_channel = bot.get_channel(OTHER_LOG_CHANNEL_ID)
+    if log_channel:
+        # Fetch audit logs to find who deleted the role
+        async for entry in role.guild.audit_logs(action=disnake.AuditLogAction.role_delete, limit=1):
+            embed = disnake.Embed(title="Role Deleted", description=role.name, color=disnake.Color.red())
+            embed.add_field(name="Deleted By", value=entry.user.mention, inline=False)
+            await log_channel.send(embed=embed)
+
+@bot.event
+async def on_guild_role_update(before, after):
+    log_channel = bot.get_channel(OTHER_LOG_CHANNEL_ID)
+    if log_channel:
+        # Fetch audit logs to find who updated the role
+        async for entry in after.guild.audit_logs(action=disnake.AuditLogAction.role_update, limit=1):
+            embed = disnake.Embed(title="Role Updated", color=disnake.Color.orange())
+            embed.add_field(name="Before", value=before.name, inline=True)
+            embed.add_field(name="After", value=after.name, inline=True)
+            embed.add_field(name="Updated By", value=entry.user.mention, inline=False)
+            await log_channel.send(embed=embed)
+
+@bot.event
+async def on_thread_create(thread):
+    log_channel = bot.get_channel(OTHER_LOG_CHANNEL_ID)
+    if log_channel:
+        # Fetch audit logs to find who created the thread
+        async for entry in thread.guild.audit_logs(action=disnake.AuditLogAction.thread_create, limit=1):
+            embed = disnake.Embed(title="Thread Created", description=thread.name, color=disnake.Color.green())
+            embed.add_field(name="Created By", value=entry.user.mention, inline=False)
+            await log_channel.send(embed=embed)
+
+@bot.event
+async def on_thread_delete(thread):
+    log_channel = bot.get_channel(OTHER_LOG_CHANNEL_ID)
+    if log_channel:
+        # Fetch audit logs to find who deleted the thread
+        async for entry in thread.guild.audit_logs(action=disnake.AuditLogAction.thread_delete, limit=1):
+            embed = disnake.Embed(title="Thread Deleted", description=thread.name, color=disnake.Color.red())
+            embed.add_field(name="Deleted By", value=entry.user.mention, inline=False)
+            await log_channel.send(embed=embed)
+
+@bot.event
+async def on_guild_update(before, after):
+    log_channel = bot.get_channel(OTHER_LOG_CHANNEL_ID)
+    if log_channel:
+        # Fetch audit logs to find who updated the guild
+        async for entry in after.audit_logs(action=disnake.AuditLogAction.guild_update, limit=1):
+            embed = disnake.Embed(title="Guild Updated", color=disnake.Color.purple())
+            embed.add_field(name="Updated By", value=entry.user.mention, inline=False)
+            await log_channel.send(embed=embed)
+
+@bot.event
+async def on_invite_create(invite):
+    log_channel = bot.get_channel(OTHER_LOG_CHANNEL_ID)
+    if log_channel:
+        # Fetch audit logs to find who created the invite
+        async for entry in invite.guild.audit_logs(action=disnake.AuditLogAction.invite_create, limit=1):
+            embed = disnake.Embed(title="Invite Created", description=invite.url, color=disnake.Color.green())
+            embed.add_field(name="Created By", value=entry.user.mention, inline=False)
+            await log_channel.send(embed=embed)
+
+@bot.event
+async def on_invite_delete(invite):
+    log_channel = bot.get_channel(OTHER_LOG_CHANNEL_ID)
+    if log_channel:
+        # Fetch audit logs to find who deleted the invite
+        async for entry in invite.guild.audit_logs(action=disnake.AuditLogAction.invite_delete, limit=1):
+            embed = disnake.Embed(title="Invite Deleted", description=invite.code, color=disnake.Color.red())
+            embed.add_field(name="Deleted By", value=entry.user.mention, inline=False)
+            await log_channel.send(embed=embed)
+
+@bot.event
+async def on_guild_emojis_update(guild, before, after):
+    log_channel = bot.get_channel(OTHER_LOG_CHANNEL_ID)
+    if log_channel:
+        # Fetch audit logs to find who updated the emojis
+        async for entry in guild.audit_logs(action=disnake.AuditLogAction.emoji_update, limit=1):
+            embed = disnake.Embed(title="Emojis Updated", color=disnake.Color.blue())
+            embed.add_field(name="Before", value=str(len(before)), inline=True)
+            embed.add_field(name="After", value=str(len(after)), inline=True)
+            embed.add_field(name="Updated By", value=entry.user.mention, inline=False)
+            await log_channel.send(embed=embed)
+
+@bot.event
+async def on_guild_channel_update(before, after):
+    log_channel = bot.get_channel(OTHER_LOG_CHANNEL_ID)
+    if log_channel:
+        # Fetch audit logs to find who updated the channel
+        async for entry in after.guild.audit_logs(action=disnake.AuditLogAction.channel_update, limit=1):
+            embed = disnake.Embed(title="Channel Updated", color=disnake.Color.orange())
+            embed.add_field(name="Channel", value=after.mention, inline=False)
+            if before.name != after.name:
+                embed.add_field(name="Name Changed", value=f"{before.name} → {after.name}", inline=False)
+            if before.topic != after.topic:
+                embed.add_field(name="Topic Changed", value=f"{before.topic} → {after.topic}", inline=False)
+            embed.add_field(name="Updated By", value=entry.user.mention, inline=False)
+            await log_channel.send(embed=embed)
+
+@bot.event
+async def on_webhooks_update(channel):
+    log_channel = bot.get_channel(OTHER_LOG_CHANNEL_ID)
+    if log_channel:
+        # Fetch audit logs to find who updated the webhook
+        async for entry in channel.guild.audit_logs(action=disnake.AuditLogAction.webhook_update, limit=1):
+            embed = disnake.Embed(title="Webhook Updated", description=f"Webhook updated in {channel.mention}", color=disnake.Color.blue())
+            embed.add_field(name="Updated By", value=entry.user.mention, inline=False)
+            await log_channel.send(embed=embed)
+
+@bot.event
+async def on_guild_scheduled_event_create(event):
+    log_channel = bot.get_channel(OTHER_LOG_CHANNEL_ID)
+    if log_channel:
+        # Fetch audit logs to find who created the event
+        async for entry in event.guild.audit_logs(action=disnake.AuditLogAction.scheduled_event_create, limit=1):
+            embed = disnake.Embed(title="Scheduled Event Created", description=event.name, color=disnake.Color.green())
+            embed.add_field(name="Created By", value=entry.user.mention, inline=False)
+            await log_channel.send(embed=embed)
+
+@bot.event
+async def on_guild_scheduled_event_delete(event):
+    log_channel = bot.get_channel(OTHER_LOG_CHANNEL_ID)
+    if log_channel:
+        # Fetch audit logs to find who deleted the event
+        async for entry in event.guild.audit_logs(action=disnake.AuditLogAction.scheduled_event_delete, limit=1):
+            embed = disnake.Embed(title="Scheduled Event Deleted", description=event.name, color=disnake.Color.red())
+            embed.add_field(name="Deleted By", value=entry.user.mention, inline=False)
+            await log_channel.send(embed=embed)
+
+@bot.event
+async def on_guild_scheduled_event_update(before, after):
+    log_channel = bot.get_channel(OTHER_LOG_CHANNEL_ID)
+    if log_channel:
+        # Fetch audit logs to find who updated the event
+        async for entry in after.guild.audit_logs(action=disnake.AuditLogAction.scheduled_event_update, limit=1):
+            embed = disnake.Embed(title="Scheduled Event Updated", description=after.name, color=disnake.Color.orange())
+            embed.add_field(name="Updated By", value=entry.user.mention, inline=False)
+            await log_channel.send(embed=embed)
+
+@bot.event
+async def on_guild_stickers_update(guild, before, after):
+    log_channel = bot.get_channel(OTHER_LOG_CHANNEL_ID)
+    if log_channel:
+        # Fetch audit logs to find who updated the stickers
+        async for entry in guild.audit_logs(action=disnake.AuditLogAction.sticker_update, limit=1):
+            embed = disnake.Embed(title="Stickers Updated", color=disnake.Color.blue())
+            embed.add_field(name="Before", value=str(len(before)), inline=True)
+            embed.add_field(name="After", value=str(len(after)), inline=True)
+            embed.add_field(name="Updated By", value=entry.user.mention, inline=False)
+            await log_channel.send(embed=embed)
+
+@bot.event
+async def on_stage_instance_create(stage_instance):
+    log_channel = bot.get_channel(OTHER_LOG_CHANNEL_ID)
+    if log_channel:
+        # Fetch audit logs to find who started the stage
+        async for entry in stage_instance.guild.audit_logs(action=disnake.AuditLogAction.stage_instance_create, limit=1):
+            embed = disnake.Embed(title="Stage Started", description=stage_instance.channel.name, color=disnake.Color.green())
+            embed.add_field(name="Started By", value=entry.user.mention, inline=False)
+            await log_channel.send(embed=embed)
+
+@bot.event
+async def on_stage_instance_delete(stage_instance):
+    log_channel = bot.get_channel(OTHER_LOG_CHANNEL_ID)
+    if log_channel:
+        # Fetch audit logs to find who ended the stage
+        async for entry in stage_instance.guild.audit_logs(action=disnake.AuditLogAction.stage_instance_delete, limit=1):
+            embed = disnake.Embed(title="Stage Ended", description=stage_instance.channel.name, color=disnake.Color.red())
+            embed.add_field(name="Ended By", value=entry.user.mention, inline=False)
+            await log_channel.send(embed=embed)
+
+@bot.event
+async def on_stage_instance_update(before, after):
+    log_channel = bot.get_channel(OTHER_LOG_CHANNEL_ID)
+    if log_channel:
+        # Fetch audit logs to find who updated the stage
+        async for entry in after.guild.audit_logs(action=disnake.AuditLogAction.stage_instance_update, limit=1):
+            embed = disnake.Embed(title="Stage Updated", description=after.channel.name, color=disnake.Color.orange())
+            embed.add_field(name="Updated By", value=entry.user.mention, inline=False)
+            await log_channel.send(embed=embed)
+
+@bot.event
+async def on_automod_action(action):
+    log_channel = bot.get_channel(OTHER_LOG_CHANNEL_ID)
+    if log_channel:
+        embed = disnake.Embed(title="AutoMod Action", color=disnake.Color.red())
+        embed.add_field(name="User", value=action.user.mention, inline=True)
+        embed.add_field(name="Rule", value=action.rule_triggered, inline=True)
+        embed.add_field(name="Content Blocked", value=action.content or "[No Content]", inline=False)
+        await log_channel.send(embed=embed)
+
+@bot.event
+async def on_thread_update(before, after):
+    log_channel = bot.get_channel(OTHER_LOG_CHANNEL_ID)
+    if log_channel:
+        # Fetch audit logs to find who updated the thread
+        async for entry in after.guild.audit_logs(action=disnake.AuditLogAction.thread_update, limit=1):
+            embed = disnake.Embed(title="Thread Updated", color=disnake.Color.orange())
+            embed.add_field(name="Thread", value=after.name, inline=False)
+            embed.add_field(name="Updated By", value=entry.user.mention, inline=False)
+            await log_channel.send(embed=embed)
+
+@bot.event
+async def on_presence_update(before, after):
+    log_channel = bot.get_channel(OTHER_LOG_CHANNEL_ID)
+    if log_channel and before.status != after.status:
+        embed = disnake.Embed(title="User Presence Updated", color=disnake.Color.blue())
+        embed.add_field(name="User", value=after.mention, inline=True)
+        embed.add_field(name="Before", value=str(before.status), inline=True)
+        embed.add_field(name="After", value=str(after.status), inline=True)
+        await log_channel.send(embed=embed)
+
 
 @bot.event
 async def on_message(message):
-    # Anti-spam system
+    # Ignore messages from bots
     if message.author.bot:
         return
 
-    user_id = message.author.id
-    now = datetime.utcnow()
-
-    if user_id not in user_message_timestamps:
-        user_message_timestamps[user_id] = []
-
-    user_message_timestamps[user_id].append(now)
-
-    # Remove timestamps older than the time window
-    user_message_timestamps[user_id] = [timestamp for timestamp in user_message_timestamps[user_id] if now - timestamp <= timedelta(seconds=SPAM_TIME_WINDOW)]
-
-    # Check if the number of messages exceeds the threshold
-    if len(user_message_timestamps[user_id]) >= SPAM_THRESHOLD:
-        # Mute the user
-        mute_role = disnake.utils.get(message.guild.roles, name="Muted")
-        if not mute_role:
-            # Create the mute role if it doesn't exist
-            mute_role = await message.guild.create_role(name="Muted")
-            for channel in message.guild.channels:
-                await channel.set_permissions(mute_role, send_messages=False)
-
-        await message.author.add_roles(mute_role, reason="Anti-spam system triggered.")
-        await message.channel.send(f"{message.author.mention} has been muted for spamming.")
-
-        # Send an alert to the log channel
-        log_channel = bot.get_channel(LOG_CHANNEL_ID)
+    # Check for @everyone or @here
+    if "@everyone" in message.content or "@here" in message.content:
+        log_channel = bot.get_channel(OTHER_LOG_CHANNEL_ID)
         if log_channel:
-            embed = disnake.Embed(
-                title="🚨 Anti-Spam Triggered 🚨",
-                description=f"**{message.author.mention} was muted for spamming.**",
-                color=disnake.Color.red()
-            )
+            embed = disnake.Embed(title="Excessive Ping Detected", color=disnake.Color.orange())
+            embed.add_field(name="User", value=message.author.mention, inline=False)
+            embed.add_field(name="Channel", value=message.channel.mention, inline=False)
+            embed.add_field(name="Message Content", value=message.content, inline=False)
             await log_channel.send(embed=embed)
 
-        # Reset the message timestamps for the user
-        user_message_timestamps[user_id] = []
-
-    await bot.process_commands(message)
+    # Check for excessive user pings (e.g., more than 5 pings)
+    if len(message.mentions) > 5:  # Adjust the threshold as needed
+        log_channel = bot.get_channel(OTHER_LOG_CHANNEL_ID)
+        if log_channel:
+            embed = disnake.Embed(title="Excessive User Pings Detected", color=disnake.Color.orange())
+            embed.add_field(name="User", value=message.author.mention, inline=False)
+            embed.add_field(name="Channel", value=message.channel.mention, inline=False)
+            embed.add_field(name="Message Content", value=message.content, inline=False)
+            embed.add_field(name="Number of Pings", value=str(len(message.mentions)), inline=False)
+            await log_channel.send(embed=embed)
 
 bot.run(TOKEN)

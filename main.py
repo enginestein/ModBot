@@ -4,6 +4,7 @@ from disnake import ApplicationCommandInteraction
 import asyncio
 from datetime import datetime, timedelta
 import os
+import webserver
 
 TOKEN = os.environ.get("TOKEN")
 GUILD_ID = 1333667547006107708
@@ -556,5 +557,6 @@ async def on_message(message):
             embed.add_field(name="Message Content", value=message.content, inline=False)
             embed.add_field(name="Number of Pings", value=str(len(message.mentions)), inline=False)
             await log_channel.send(embed=embed)
-
+            
+webserver.keep_alive()
 bot.run(TOKEN)

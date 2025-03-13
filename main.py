@@ -3,8 +3,9 @@ from disnake.ext import commands
 from disnake import ApplicationCommandInteraction
 import asyncio
 from datetime import datetime, timedelta
+import os
 
-TOKEN = ""
+TOKEN = os.environ.get('TOKEN')
 GUILD_ID = 1333667547006107708
 LOG_CHANNEL_ID = 1348264999730155621
 ALLOWED_CHANNEL_ID = 1349565123857223711

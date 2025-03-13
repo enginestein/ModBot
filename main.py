@@ -13,6 +13,17 @@ OTHER_LOG_CHANNEL_ID = 1337295229124087838
 ALLOWED_CHANNEL_ID = 1349565123857223711
 WELCOME_LOG = 1349573548066213888
 
+ADMIN_ROLE_ID = 1333670552405147679
+
+MESSAGE_THRESHOLD = 5 
+TIME_WINDOW = 5  
+PING_THRESHOLD = 5 
+CAPS_THRESHOLD = 0.6  
+DUPLICATE_THRESHOLD = 3 
+
+user_message_history = {}
+user_duplicate_history = {}
+
 ROLE_1_ID = 123456789012345678
 ROLE_2_ID = 987654321098765432
 ROLE_1_EMOJI = "✅"
@@ -35,8 +46,6 @@ questions = [
 "Opinions on caste system and casteism, as both are different things.",
 "Opinions on modernization in terms of social activies ie. Dating."
 ]
-
-
 
 
 
@@ -533,30 +542,93 @@ async def on_presence_update(before, after):
 
 @bot.event
 async def on_message(message):
-    # Ignore messages from bots
     if message.author.bot:
         return
 
-    # Check for @everyone or @here
+    # Anti-Spam
+    user_id = message.author.id
+    current_time = message.created_at.timestamp()
+
+    if user_id not in user_message_history:
+        user_message_history[user_id] = []
+
+    user_message_history[user_id].append(current_time)
+
+    # Remove old timestamps
+    user_message_history[user_id] = [
+        t for t in user_message_history[user_id] if t > current_time - TIME_WINDOW
+    ]
+
+    if len(user_message_history[user_id]) > MESSAGE_THRESHOLD:
+        log_channel = bot.get_channel(OTHER_LOG_CHANNEL_ID)
+        admin_role = disnake.utils.get(message.guild.roles, id=ADMIN_ROLE_ID)
+        if log_channel and admin_role:
+            embed = disnake.Embed(title="Possible Spam Detected", color=disnake.Color.red())
+            embed.add_field(name="User", value=message.author.mention, inline=False)
+            embed.add_field(name="Channel", value=message.channel.mention, inline=False)
+            embed.add_field(name="Message Content", value=message.content, inline=False)
+            embed.add_field(name="Message Count", value=str(len(user_message_history[user_id])), inline=False)
+            await log_channel.send(f"{admin_role.mention} High priority spam detected!", embed=embed)
+            await message.delete()  # Delete the spam messages
+            del user_message_history[user_id] # reset the user message history
+            return #Exit to prevent other checks.
+
+    # Duplicate Message Detection
+    if user_id not in user_duplicate_history:
+        user_duplicate_history[user_id] = []
+    
+    user_duplicate_history[user_id].append(message.content)
+
+    if len(user_duplicate_history[user_id]) > DUPLICATE_THRESHOLD:
+      if len(set(user_duplicate_history[user_id][-DUPLICATE_THRESHOLD:])) == 1: #Check if the last N messages are the same
+        log_channel = bot.get_channel(OTHER_LOG_CHANNEL_ID)
+        admin_role = disnake.utils.get(message.guild.roles, id=ADMIN_ROLE_ID)
+        if log_channel and admin_role:
+            embed = disnake.Embed(title="Possible Duplicate Message Spam", color=disnake.Color.red())
+            embed.add_field(name="User", value=message.author.mention, inline=False)
+            embed.add_field(name="Channel", value=message.channel.mention, inline=False)
+            embed.add_field(name="Message Content", value=message.content, inline=False)
+            await log_channel.send(f"{admin_role.mention} High priority duplicate message spam detected!", embed=embed)
+            await message.delete()
+            del user_duplicate_history[user_id]
+            return
+
+    # Excessive Pings
     if "@everyone" in message.content or "@here" in message.content:
         log_channel = bot.get_channel(OTHER_LOG_CHANNEL_ID)
-        if log_channel:
+        admin_role = disnake.utils.get(message.guild.roles, id=ADMIN_ROLE_ID)
+        if log_channel and admin_role:
             embed = disnake.Embed(title="Excessive Ping Detected", color=disnake.Color.orange())
             embed.add_field(name="User", value=message.author.mention, inline=False)
             embed.add_field(name="Channel", value=message.channel.mention, inline=False)
             embed.add_field(name="Message Content", value=message.content, inline=False)
-            await log_channel.send(embed=embed)
+            await log_channel.send(f"{admin_role.mention} Possible mass ping detected!", embed=embed)
 
-    # Check for excessive user pings (e.g., more than 5 pings)
-    if len(message.mentions) > 5:  # Adjust the threshold as needed
+    if len(message.mentions) > PING_THRESHOLD:
         log_channel = bot.get_channel(OTHER_LOG_CHANNEL_ID)
-        if log_channel:
+        admin_role = disnake.utils.get(message.guild.roles, id=ADMIN_ROLE_ID)
+        if log_channel and admin_role:
             embed = disnake.Embed(title="Excessive User Pings Detected", color=disnake.Color.orange())
             embed.add_field(name="User", value=message.author.mention, inline=False)
             embed.add_field(name="Channel", value=message.channel.mention, inline=False)
             embed.add_field(name="Message Content", value=message.content, inline=False)
             embed.add_field(name="Number of Pings", value=str(len(message.mentions)), inline=False)
-            await log_channel.send(embed=embed)
-            
+            await log_channel.send(f"{admin_role.mention} Possible mass user ping detected!", embed=embed)
+
+    # Excessive Caps
+    caps_percentage = sum(1 for c in message.content if c.isupper()) / len(message.content) if message.content else 0
+    if caps_percentage > CAPS_THRESHOLD and len(message.content) > 10: #Add length check to avoid false positives.
+        log_channel = bot.get_channel(OTHER_LOG_CHANNEL_ID)
+        admin_role = disnake.utils.get(message.guild.roles, id=ADMIN_ROLE_ID)
+        if log_channel and admin_role:
+            embed = disnake.Embed(title="Excessive Caps Detected", color=disnake.Color.orange())
+            embed.add_field(name="User", value=message.author.mention, inline=False)
+            embed.add_field(name="Channel", value=message.channel.mention, inline=False)
+            embed.add_field(name="Message Content", value=message.content, inline=False)
+            embed.add_field(name="Caps Percentage", value=f"{caps_percentage:.2%}", inline=False)
+            await log_channel.send(f"{admin_role.mention} Possible excessive caps detected!", embed=embed)
+
+    await bot.process_commands(message) #Process commands after checking for spam.
+
 webserver.keep_alive()
 bot.run(TOKEN)

@@ -5,6 +5,7 @@ import asyncio
 from datetime import datetime, timedelta
 import os
 import webserver
+import time
 
 TOKEN = os.environ.get("TOKEN")
 GUILD_ID = 1333667547006107708
@@ -15,11 +16,12 @@ WELCOME_LOG = 1349573548066213888
 
 ADMIN_ROLE_ID = 1333670552405147679
 
-MESSAGE_THRESHOLD = 5 
-TIME_WINDOW = 5  
-PING_THRESHOLD = 5 
-CAPS_THRESHOLD = 0.6  
-DUPLICATE_THRESHOLD = 3 
+TIME_WINDOW = 5  # Time window in seconds
+MESSAGE_THRESHOLD = 4  # Max messages allowed in time window
+DUPLICATE_THRESHOLD = 3  # Max duplicate messages allowed
+PING_THRESHOLD = 5  # Max user mentions allowed
+CAPS_THRESHOLD = 0.7  # 70% caps is considered spam
+
 
 user_message_history = {}
 user_duplicate_history = {}
@@ -46,7 +48,6 @@ questions = [
 "Opinions on caste system and casteism, as both are different things.",
 "Opinions on modernization in terms of social activies ie. Dating."
 ]
-
 
 
 @bot.slash_command(
@@ -547,7 +548,7 @@ async def on_message(message):
 
     # Anti-Spam
     user_id = message.author.id
-    current_time = message.created_at.timestamp()
+    current_time = time.time()
 
     if user_id not in user_message_history:
         user_message_history[user_id] = []
@@ -570,28 +571,28 @@ async def on_message(message):
             embed.add_field(name="Message Count", value=str(len(user_message_history[user_id])), inline=False)
             await log_channel.send(f"{admin_role.mention} High priority spam detected!", embed=embed)
             await message.delete()  # Delete the spam messages
-            del user_message_history[user_id] # reset the user message history
-            return #Exit to prevent other checks.
+            del user_message_history[user_id]  # Reset the user message history
+            return  # Exit to prevent other checks.
 
     # Duplicate Message Detection
     if user_id not in user_duplicate_history:
         user_duplicate_history[user_id] = []
-    
+
     user_duplicate_history[user_id].append(message.content)
 
     if len(user_duplicate_history[user_id]) > DUPLICATE_THRESHOLD:
-      if len(set(user_duplicate_history[user_id][-DUPLICATE_THRESHOLD:])) == 1: #Check if the last N messages are the same
-        log_channel = bot.get_channel(OTHER_LOG_CHANNEL_ID)
-        admin_role = disnake.utils.get(message.guild.roles, id=ADMIN_ROLE_ID)
-        if log_channel and admin_role:
-            embed = disnake.Embed(title="Possible Duplicate Message Spam", color=disnake.Color.red())
-            embed.add_field(name="User", value=message.author.mention, inline=False)
-            embed.add_field(name="Channel", value=message.channel.mention, inline=False)
-            embed.add_field(name="Message Content", value=message.content, inline=False)
-            await log_channel.send(f"{admin_role.mention} High priority duplicate message spam detected!", embed=embed)
-            await message.delete()
-            del user_duplicate_history[user_id]
-            return
+        if len(set(user_duplicate_history[user_id][-DUPLICATE_THRESHOLD:])) == 1:  # Check if the last N messages are the same
+            log_channel = bot.get_channel(OTHER_LOG_CHANNEL_ID)
+            admin_role = disnake.utils.get(message.guild.roles, id=ADMIN_ROLE_ID)
+            if log_channel and admin_role:
+                embed = disnake.Embed(title="Possible Duplicate Message Spam", color=disnake.Color.red())
+                embed.add_field(name="User", value=message.author.mention, inline=False)
+                embed.add_field(name="Channel", value=message.channel.mention, inline=False)
+                embed.add_field(name="Message Content", value=message.content, inline=False)
+                await log_channel.send(f"{admin_role.mention} High priority duplicate message spam detected!", embed=embed)
+                await message.delete()
+                del user_duplicate_history[user_id]
+                return
 
     # Excessive Pings
     if "@everyone" in message.content or "@here" in message.content:
@@ -617,7 +618,7 @@ async def on_message(message):
 
     # Excessive Caps
     caps_percentage = sum(1 for c in message.content if c.isupper()) / len(message.content) if message.content else 0
-    if caps_percentage > CAPS_THRESHOLD and len(message.content) > 10: #Add length check to avoid false positives.
+    if caps_percentage > CAPS_THRESHOLD and len(message.content) > 10:  # Add length check to avoid false positives
         log_channel = bot.get_channel(OTHER_LOG_CHANNEL_ID)
         admin_role = disnake.utils.get(message.guild.roles, id=ADMIN_ROLE_ID)
         if log_channel and admin_role:
@@ -628,7 +629,7 @@ async def on_message(message):
             embed.add_field(name="Caps Percentage", value=f"{caps_percentage:.2%}", inline=False)
             await log_channel.send(f"{admin_role.mention} Possible excessive caps detected!", embed=embed)
 
-    await bot.process_commands(message) #Process commands after checking for spam.
+    await bot.process_commands(message)  # Process commands after checking for spam
 
 webserver.keep_alive()
 bot.run(TOKEN)

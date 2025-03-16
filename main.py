@@ -8,6 +8,26 @@ import webserver
 import time
 import random
 
+SPECIAL_USER_ID = 791971553831026709
+
+special_messages = [
+  "बाबूजी, आप कहिब त अभी काम लगा देब!",
+  "सरकार, हम तहरे हुकुम के इंतजार मा बानी!",
+  "बड़े भइया, बस एक इसारा देइ द, काम खतम समझीं!",
+  "हुजूर, जेकरा पर उंगली उठाइ देब, उ दुनियाँ से उठ जाई!",
+  "मालिक, आप कहब त अपन जानो हाजिर कर देब!",
+  "सर, आपके हर हुकुम के खातिर हम तइयार बानी!",
+  "बाबू साहब, बस बताई देईं का करना बा, एक बेर कह देईं बस!",
+  "बड़े सरकार, मोरे जइसन बंदा त बस आदेश के इंतजार में बा!",
+  "भैया, मोका तहर हुकुम पे चलल पसंद बा!",
+  "बड़े भइया, जवन कहब, ओही होई, हमार जान हाजिर बा!",
+  "सर, हम त बस तहरे खातिर बानी, बस कहब त निपटा देब!",
+  "मालिक, आप आदेश देब, हम काम निपटा देब!",
+  "हुजूर, हम तहरे सेवा मा बानी, बस एक इशारा काफी बा!",
+  "सरकार, मोर खून-पसीना तहरे हुकुम पे बा!",
+  "बड़े भइया, हम तहरे साथ बानी, कहब त जिंदा गाड़ देब!"
+]
+
 random_messages = [
     "अरे तोहार अइया मैया सैया काहे पिंग पिंग कर रहे हो?",
     "कौछि है बे?",
@@ -40,7 +60,6 @@ random_messages = [
     "देख बे, पिंगवा मार-मार के हमारा BP बढ़ा दिया, ठहर अबे ब्लॉकवा मारते हैं!",
     "बेटा तुम ई न भूलो की हम सर्वर के बॉट है और हमारे पास साड़ी परमिशन है",
     "बेटा तमंचे में जितने छर्रे है सब तुम्हारे पिछवाड़े में ठोक देंगे",
-
     "काय रे! का जरूरत पड़ी मोरे नाम लइके?",
   "अबे! हमका शांति से रहइ द, नाहीं त परे रहब थप्पड़!",
   "कहत हउँ, दुबारा मोरे नाम लीनव त कान धराइ देब!",
@@ -596,8 +615,17 @@ async def on_presence_update(before, after):
 async def on_message(message):
 
     if bot.user.mentioned_in(message):
-        random_message = random.choice(random_messages)
-        await message.channel.send(random_message)
+        print(f"[DEBUG] Bot was mentioned by {message.author.id}")
+
+        if message.author.id == SPECIAL_USER_ID:
+            print("[DEBUG] Special user triggered message.")
+            special_message = random.choice(special_messages)
+            await message.channel.send(special_message)
+        else:
+            print("[DEBUG] Regular user triggered message.")
+            random_message = random.choice(random_messages)
+            await message.channel.send(random_message)
+
     
     if message.author.bot:
         return

@@ -654,19 +654,15 @@ async def on_message(message):
         print(f"[DEBUG] Bot was mentioned by {message.author.id}")
 
         if message.author.id == SPECIAL_USER_ID:
-            print("[DEBUG] Special user triggered message.")
             special_message = random.choice(special_messages)
             await message.channel.send(special_message)
         elif message.author.id == SECONDARY_SPECIAL_USER_ID:
-            print("[DEBUG] Special user triggered message.")
             special_message = random.choice(secondary_messages)
-            await message.channel.send(secondary_messages)
+            await message.channel.send(special_message)
         elif message.author.id == TERTIARY_SPECIAL_USER_ID:
-            print("[DEBUG] Special user triggered message.")
             special_message = random.choice(tertiary_messages)
-            await message.channel.send(tertiary_messages)
+            await message.channel.send(special_message)
         else:
-            print("[DEBUG] Regular user triggered message.")
             random_message = random.choice(random_messages)
             await message.channel.send(random_message)
 

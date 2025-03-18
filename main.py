@@ -654,14 +654,14 @@ async def on_message(message):
         print(f"[DEBUG] Bot was mentioned by {message.author.id}")
 
         if message.author.id == SPECIAL_USER_ID:
-            special_message = random.choice(special_messages)
-            await message.channel.send(special_message)
+            special_message1 = random.choice(special_messages)
+            await message.channel.send(special_message1)
         elif message.author.id == SECONDARY_SPECIAL_USER_ID:
-            special_message = random.choice(secondary_messages)
-            await message.channel.send(special_message)
+            special_message2 = random.choice(secondary_messages)
+            await message.channel.send(special_message2)
         elif message.author.id == TERTIARY_SPECIAL_USER_ID:
-            special_message = random.choice(tertiary_messages)
-            await message.channel.send(special_message)
+            special_message3 = random.choice(tertiary_messages)
+            await message.channel.send(special_message3)
         else:
             random_message = random.choice(random_messages)
             await message.channel.send(random_message)

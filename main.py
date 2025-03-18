@@ -9,6 +9,8 @@ import time
 import random
 
 SPECIAL_USER_ID = 791971553831026709
+SECONDARY_SPECIAL_USER_ID = 1317434249640673364
+TERTIARY_SPECIAL_USER_ID = 1104375851816071208
 
 special_messages = [
   "बाबूजी, आप कहिब त अभी काम लगा देब!",
@@ -27,6 +29,21 @@ special_messages = [
   "सरकार, मोर खून-पसीना तहरे हुकुम पे बा!",
   "बड़े भइया, हम तहरे साथ बानी, कहब त जिंदा गाड़ देब!"
 ]
+
+secondary_messages = [
+ "अरे किल्ला भाई! तोहार तो हम पूरा मदद करिबे",
+  "बस तुम काम बताओ छोटे, बाकी सब हम कर देंगे",
+  "पिंग करने की जरुरत कहाँ है? हम पाहिले से जानते है जो आप कही रहे हो",
+  "खुश रहो बउवा, तुम्हरा सब काम हुई जइ"
+]
+
+tertiary_messages = [
+ "गुरु जी प्रणाम, आदेश तुम्हरा स्वीकार है",
+  "अरे आप भाई हो हमरे, बात तुम्हरी पत्थर की लकीर!",
+  "बन्दूक में खून लगा के थमा देंगे तुम्हारे हाथो में!",
+  "आप जितनी बार पिंग करके जो भी बोलो सब हमरे लिए शक्कर हुई"
+]
+
 
 random_messages = [
     "अरे तोहार अइया मैया सैया काहे पिंग पिंग कर रहे हो?",
@@ -60,7 +77,6 @@ random_messages = [
     "देख बे, पिंगवा मार-मार के हमारा BP बढ़ा दिया, ठहर अबे ब्लॉकवा मारते हैं!",
     "बेटा तुम ई न भूलो की हम सर्वर के बॉट है और हमारे पास साड़ी परमिशन है",
     "बेटा तमंचे में जितने छर्रे है सब तुम्हारे पिछवाड़े में ठोक देंगे",
-
     "काय रे! का जरूरत पड़ी मोरे नाम लइके?",
   "अबे! हमका शांति से रहइ द, नाहीं त परे रहब थप्पड़!",
   "कहत हउँ, दुबारा मोरे नाम लीनव त कान धराइ देब!",
@@ -135,7 +151,7 @@ questions = [
 "Opinions on LGBTQ+ and Feminism?",
 "Opinions on minorities?",
 "Opinions on Muslim Extremism?",
-"Opinions on caste system and casteism, as both are different things.",
+"Opinions on varna system and casteism, as both are different things.",
 "Opinions on modernization in terms of social activies ie. Dating."
 ]
 
@@ -641,6 +657,14 @@ async def on_message(message):
             print("[DEBUG] Special user triggered message.")
             special_message = random.choice(special_messages)
             await message.channel.send(special_message)
+        elif message.author.id == SECONDARY_SPECIAL_USER_ID:
+            print("[DEBUG] Special user triggered message.")
+            special_message = random.choice(secondary_messages)
+            await message.channel.send(secondary_messages)
+        elif message.author.id == TERTIARY_SPECIAL_USER_ID:
+            print("[DEBUG] Special user triggered message.")
+            special_message = random.choice(tertiary_messages)
+            await message.channel.send(tertiary_messages)
         else:
             print("[DEBUG] Regular user triggered message.")
             random_message = random.choice(random_messages)

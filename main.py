@@ -313,6 +313,7 @@ async def clear(inter: ApplicationCommandInteraction, amount: int):
 async def admin_send(inter: ApplicationCommandInteraction,
                      channel: disnake.TextChannel, title: str,
                      description: str, color: str = "blue"):
+    description = description.replace("\\n", "\n")
     color_map = {
         "blue": disnake.Color.blue(), "green": disnake.Color.green(),
         "red": disnake.Color.red(),   "yellow": disnake.Color.yellow(),
